@@ -1,0 +1,108 @@
+# SonarQube Configuration
+sonarqube:
+  enabled: true
+  name: sonarqube
+
+  image:
+    repository: sonarqube
+    tag: 26.4.0.121862-community
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  service:
+    type: ClusterIP
+    port: 9000
+
+  ingress:
+    enabled: true
+    className: nginx
+    host: sonarqube.joinhati.com.br
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-body-size: 500M
+
+  resources:
+    limits:
+      cpu: "1"
+      memory: 6144Mi
+    requests:
+      cpu: 300m
+      memory: 512Mi
+
+  persistence:
+    enabled: true
+    storageClass: nfs-client
+    size: 10Gi
+    accessMode: ReadWriteOnce
+
+  env:
+    webHost: "http://sonarqube.joinhati.com.br"
+    jdbcUsername: "sonar"
+    webJavaOpts: "-Xmx4096m -Xms1024m -XX:+HeapDumpOnOutOfMemoryError -javaagent:/opt/sonarqube/extensions/plugins/sonarqube-community-branch-plugin.jar=web"
+    ceJavaOpts: "-Xmx4096m -Xms1024m -XX:+HeapDumpOnOutOfMemoryError -javaagent:/opt/sonarqube/extensions/plugins/sonarqube-community-branch-plugin.jar=ce"
+
+  # Base64 encoded password
+  jdbcPassword: c29uYXJkYjEyMw==
+
+  plugins:
+    version: "26.4.0"
+
+  initContainers:
+    initVmMaxMapCount:
+      enabled: true
+    downloadPlugins:
+      enabled: true
+
+  securityContext:
+    fsGroup: 1000
+
+# PostgreSQL Configuration
+postgresql:
+  enabled: true
+  name: postgresql
+
+  image:
+    repository: postgres
+    tag: "16.1"
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  service:
+    type: ClusterIP
+    port: 5432
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      memory: 6Gi
+
+  persistence:
+    enabled: true
+    storageClass: nfs-client
+    size: 30Gi
+    accessMode: ReadWriteOnce
+
+  env:
+    user: sonar
+    database: sonar
+    sharedBuffers: "256MB"
+    workMem: "4MB"
+
+  # Base64 encoded password
+  password: c29uYXJkYjEyMw==
+
+  initContainers:
+    fixPermissions:
+      enabled: true
+
+  securityContext:
+    fsGroup: 999
+    runAsUser: 999
+
+# Global labels
+labels:
+  app: sonarqube
+  release: sonarqube

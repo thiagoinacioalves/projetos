@@ -1,0 +1,12 @@
+apiVersion: v2
+name: sonarqube
+description: A Helm chart for SonarQube with PostgreSQL database
+type: application
+version: 1.0.0
+appVersion: "26.4.0"
+keywords:
+  - sonarqube
+  - code-quality
+  - postgresql
+maintainers:
+  - name: DevOps Team

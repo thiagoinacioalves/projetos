@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: postgresql
+    release: sonar-db
+  name: sonarqube-db-postgresql
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: postgresql
+      release: sonar-db
+      role: master
+  serviceName: sonar-db-postgresql-headless
+  template:
+    metadata:
+      labels:
+        app: postgresql
+        release: sonar-db
+        role: master
+      name: sonar-db-postgresql
+    spec:
+      initContainers:
+        - name: fix-permissions
+          image: busybox
+          command: ["sh", "-c", "chown -R 999:999 /var/lib/postgresql"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          securityContext:
+            runAsUser: 0
+      containers:
+        - name: sonar-db-postgresql
+          image: postgres:16.1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: postgres-sonarqube-env
+            - secretRef:
+                name: sonar-db-postgresql
+          livenessProbe: null
+#            exec:
+#              command:
+#                - sh
+#                - -c
+#                - exec pg_isready -U "sonar" -d "sonarDB" -h 127.0.0.1 -p 5432
+#            failureThreshold: 20
+#            initialDelaySeconds: 180
+#            periodSeconds: 10
+#            successThreshold: 1
+#            timeoutSeconds: 60
+          ports:
+            - containerPort: 5432
+              name: postgresql
+              protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -U "sonar" -d "sonar" -h 127.0.0.1 -p 5432
+            failureThreshold: 6
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 60
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              memory: 6Gi
+          securityContext:
+            runAsUser: 999
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: data
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 999
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: sonarqube-db-postgresql-pvc
+  updateStrategy:
+    type: RollingUpdate

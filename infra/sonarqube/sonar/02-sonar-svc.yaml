@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: sonarqube
+    release: sonarqube
+  name: sonarqube-sonarqube
+spec:
+  ports:
+  - name: sonarqube
+    port: 9000
+    protocol: TCP
+    targetPort: 9000
+  selector:
+    app: sonarqube
+    release: sonarqube
+  sessionAffinity: None
+  type: ClusterIP

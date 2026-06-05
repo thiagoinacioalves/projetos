@@ -1,0 +1,165 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+  labels:
+    app: sonarqube
+    release: sonarqube
+  name: sonarqube-sonarqube
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: sonarqube
+      release: sonarqube
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: sonarqube
+        release: sonarqube
+    spec:
+      initContainers:
+        - name: init-vm-max-map-count
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              sysctl -w vm.max_map_count=262144
+          securityContext:
+            privileged: true  # Necessário para modificar a configuração do host
+        - name: download-sonarqube-files
+          image: alpine:3.20
+          command:
+            - sh
+            - -c
+            - |
+                set -e
+
+                apk add --no-cache wget unzip
+
+                PLUGIN_VERSION="26.4.0"
+                PLUGIN_DIR="/opt/sonarqube/extensions/plugins"
+                WEB_DIR="/opt/sonarqube/web"
+                TEMP_DIR="/opt/sonarqube/temp"
+
+                mkdir -p "$PLUGIN_DIR" "$WEB_DIR" "$TEMP_DIR"
+
+                echo "Limpando plugins antigos..."
+                rm -f "$PLUGIN_DIR"/*.jar
+                echo "Limpando data antigo..."
+                rm -rf /opt/sonarqube/data/es*
+
+                echo "Baixando plugin..."
+                 wget -O "$PLUGIN_DIR/sonarqube-community-branch-plugin.jar" \
+                   "https://github.com/mc1arke/sonarqube-community-branch-plugin/releases/download/${PLUGIN_VERSION}/sonarqube-community-branch-plugin-${PLUGIN_VERSION}.jar"
+
+                echo "Baixando webapp..."
+                 wget -O "$TEMP_DIR/sonarqube-webapp.zip" \
+                   "https://github.com/mc1arke/sonarqube-community-branch-plugin/releases/download/${PLUGIN_VERSION}/sonarqube-webapp.zip"
+
+                echo "Extraindo webapp..."
+                 unzip -o "$TEMP_DIR/sonarqube-webapp.zip" -d "$WEB_DIR"
+
+                chown -R 1000:101 "$PLUGIN_DIR" "$WEB_DIR"
+                chmod -R 755 "$PLUGIN_DIR" "$WEB_DIR"
+
+                echo "Plugin instalado com sucesso."
+          securityContext:
+            privileged: true  # Necessário para modificar a configuração do host
+          volumeMounts:
+            - mountPath: /opt/sonarqube/extensions/plugins
+              name: sonarqube
+              subPath: plugins
+            - mountPath: /opt/sonarqube/web
+              name: sonarqube
+              subPath:  web 
+            - mountPath: /opt/sonarqube/temp
+              name: sonarqube
+              subPath: temp                    
+      containers:
+        - name: sonarqube
+          image: sonarqube:26.4.0.121862-community
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: sonarqube-sonarqube-env
+            - configMapRef:
+                name: sonarqube-sonarqube-copy-plugins
+            - configMapRef:
+                name: sonarqube-sonarqube-install-plugins
+            - configMapRef:
+                name: sonarqube-sonarqube-tests
+            - secretRef:
+                name: sonarqube-secret
+          ports:
+            - containerPort: 9000
+              protocol: TCP
+          resources:
+            limits:
+              cpu: "1"
+              memory: 6144Mi
+            requests:
+              cpu: 300m
+              memory: 512Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /opt/sonarqube/data
+              name: sonarqube
+              subPath: data
+            - mountPath: /opt/sonarqube/extensions/plugins/tmp
+              name: sonarqube
+              subPath: tmp
+            - mountPath: /opt/sonarqube/extensions/downloads
+              name: sonarqube
+              subPath: downloads
+            - mountPath: /opt/sonarqube/extensions/plugins
+              name: sonarqube
+              subPath: plugins
+            - mountPath: /opt/sonarqube/temp
+              name: sonarqube
+              subPath: temp
+            - mountPath: /opt/sonarqube/logs
+              name: sonarqube
+              subPath: logs
+            - mountPath: /tmp
+              name: tmp-dir
+            - mountPath: /tmp/scripts
+              name: copy-plugins
+            - mountPath: /opt/sonarqube/web
+              name: sonarqube
+              subPath:  web
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 1000
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - configMap:
+            defaultMode: 420
+            items:
+              - key: install_plugins.sh
+                path: install_plugins.sh
+            name: sonarqube-sonarqube-install-plugins
+          name: install-plugins
+        - configMap:
+            defaultMode: 493
+            items:
+              - key: copy_plugins.sh
+                path: copy_plugins.sh
+            name: sonarqube-sonarqube-copy-plugins
+          name: copy-plugins
+        - name: sonarqube
+          persistentVolumeClaim:
+            claimName: sonarqube-pvc
+        - emptyDir: {}
+          name: tmp-dir

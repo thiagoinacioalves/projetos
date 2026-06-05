@@ -1,0 +1,164 @@
+{{- if .Values.sonarqube.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.sonarqube.name }}-{{ .Values.sonarqube.name }}
+  labels:
+    {{- toYaml .Values.labels | nindent 4 }}
+spec:
+  progressDeadlineSeconds: 600
+  replicas: {{ .Values.sonarqube.replicas }}
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      {{- toYaml .Values.labels | nindent 6 }}
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        {{- toYaml .Values.labels | nindent 8 }}
+    spec:
+      {{- if or .Values.sonarqube.initContainers.initVmMaxMapCount.enabled .Values.sonarqube.initContainers.downloadPlugins.enabled }}
+      initContainers:
+        {{- if .Values.sonarqube.initContainers.initVmMaxMapCount.enabled }}
+        - name: init-vm-max-map-count
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              sysctl -w vm.max_map_count=262144
+          securityContext:
+            privileged: true
+        {{- end }}
+        {{- if .Values.sonarqube.initContainers.downloadPlugins.enabled }}
+        - name: download-sonarqube-files
+          image: alpine:3.20
+          command:
+            - sh
+            - -c
+            - |
+                set -e
+
+                apk add --no-cache wget unzip
+
+                PLUGIN_VERSION="{{ .Values.sonarqube.plugins.version }}"
+                PLUGIN_DIR="/opt/sonarqube/extensions/plugins"
+                WEB_DIR="/opt/sonarqube/web"
+                TEMP_DIR="/opt/sonarqube/temp"
+
+                mkdir -p "$PLUGIN_DIR" "$WEB_DIR" "$TEMP_DIR"
+
+                echo "Limpando plugins antigos..."
+                rm -f "$PLUGIN_DIR"/*.jar
+                echo "Limpando data antigo..."
+                rm -rf /opt/sonarqube/data/es*
+
+                echo "Baixando plugin..."
+                 wget -O "$PLUGIN_DIR/sonarqube-community-branch-plugin.jar" \
+                   "https://github.com/mc1arke/sonarqube-community-branch-plugin/releases/download/${PLUGIN_VERSION}/sonarqube-community-branch-plugin-${PLUGIN_VERSION}.jar"
+
+                echo "Baixando webapp..."
+                 wget -O "$TEMP_DIR/sonarqube-webapp.zip" \
+                   "https://github.com/mc1arke/sonarqube-community-branch-plugin/releases/download/${PLUGIN_VERSION}/sonarqube-webapp.zip"
+
+                echo "Extraindo webapp..."
+                 unzip -o "$TEMP_DIR/sonarqube-webapp.zip" -d "$WEB_DIR"
+
+                chown -R 1000:101 "$PLUGIN_DIR" "$WEB_DIR"
+                chmod -R 755 "$PLUGIN_DIR" "$WEB_DIR"
+
+                echo "Plugin instalado com sucesso."
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - mountPath: /opt/sonarqube/extensions/plugins
+              name: {{ .Values.sonarqube.name }}
+              subPath: plugins
+            - mountPath: /opt/sonarqube/web
+              name: {{ .Values.sonarqube.name }}
+              subPath: web
+            - mountPath: /opt/sonarqube/temp
+              name: {{ .Values.sonarqube.name }}
+              subPath: temp
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: {{ .Values.sonarqube.name }}
+          image: "{{ .Values.sonarqube.image.repository }}:{{ .Values.sonarqube.image.tag }}"
+          imagePullPolicy: {{ .Values.sonarqube.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.sonarqube.name }}-env
+            - configMapRef:
+                name: {{ .Values.sonarqube.name }}-copy-plugins
+            - configMapRef:
+                name: {{ .Values.sonarqube.name }}-install-plugins
+            - configMapRef:
+                name: {{ .Values.sonarqube.name }}-tests
+            - secretRef:
+                name: {{ .Values.sonarqube.name }}-secret
+          ports:
+            - containerPort: {{ .Values.sonarqube.service.port }}
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.sonarqube.resources | nindent 12 }}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /opt/sonarqube/data
+              name: {{ .Values.sonarqube.name }}
+              subPath: data
+            - mountPath: /opt/sonarqube/extensions/plugins/tmp
+              name: {{ .Values.sonarqube.name }}
+              subPath: tmp
+            - mountPath: /opt/sonarqube/extensions/downloads
+              name: {{ .Values.sonarqube.name }}
+              subPath: downloads
+            - mountPath: /opt/sonarqube/extensions/plugins
+              name: {{ .Values.sonarqube.name }}
+              subPath: plugins
+            - mountPath: /opt/sonarqube/temp
+              name: {{ .Values.sonarqube.name }}
+              subPath: temp
+            - mountPath: /opt/sonarqube/logs
+              name: {{ .Values.sonarqube.name }}
+              subPath: logs
+            - mountPath: /tmp
+              name: tmp-dir
+            - mountPath: /tmp/scripts
+              name: copy-plugins
+            - mountPath: /opt/sonarqube/web
+              name: {{ .Values.sonarqube.name }}
+              subPath: web
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: {{ .Values.sonarqube.securityContext.fsGroup }}
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - configMap:
+            defaultMode: 420
+            items:
+              - key: install_plugins.sh
+                path: install_plugins.sh
+            name: {{ .Values.sonarqube.name }}-install-plugins
+          name: install-plugins
+        - configMap:
+            defaultMode: 493
+            items:
+              - key: copy_plugins.sh
+                path: copy_plugins.sh
+            name: {{ .Values.sonarqube.name }}-copy-plugins
+          name: copy-plugins
+        - name: {{ .Values.sonarqube.name }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.sonarqube.name }}-pvc
+        - emptyDir: {}
+          name: tmp-dir
+{{- end }}

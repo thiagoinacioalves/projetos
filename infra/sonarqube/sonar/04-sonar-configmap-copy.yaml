@@ -1,0 +1,13 @@
+apiVersion: v1
+data:
+  copy_plugins.sh: "#!/bin/bash\nfor f in /opt/sonarqube/extensions/plugins/tmp/*.jar\ndo\n
+    \ file=${f##*/} && file=${file%-[0-9]*} \n  for original in /opt/sonarqube/extensions/plugins/*.jar\n
+    \ do\n    originalfile=${original##*/} && originalfile=${originalfile%-[0-9]*}
+    \n    if [ \"$originalfile\" = \"$file\" ]; then\n      rm -f \"$original\"\n
+    \   fi\n  done\ndone\ncp /opt/sonarqube/extensions/plugins/tmp/*.jar /opt/sonarqube/extensions/plugins/\n/opt/sonarqube/bin/run.sh"
+kind: ConfigMap
+metadata:
+  labels:
+    app: sonarqube
+    release: sonarqube
+  name: sonarqube-sonarqube-copy-plugins

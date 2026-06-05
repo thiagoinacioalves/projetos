@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: sonarqube
+    release: sonarqube
+  name: sonarqube-sonarqube-env
+data:
+  SONARQUBE_WEB_HOST: "http://sonarqube.joinhati.com.br"
+  SONARQUBE_JDBC_USERNAME: "sonar"
+  SONAR_JDBC_USERNAME: "sonar"
+  SONAR_JDBC_URL: jdbc:postgresql://sonarqube-db-postgresql:5432/sonar
+  SONARQUBE_JDBC_URL: jdbc:postgresql://sonarqube-db-postgresql:5432/sonar
+  SONAR_WEB_JAVAOPTS: "-Xmx4096m -Xms1024m -XX:+HeapDumpOnOutOfMemoryError  -javaagent:/opt/sonarqube/extensions/plugins/sonarqube-community-branch-plugin.jar=web"
+  SONAR_CE_JAVAOPTS: "-Xmx4096m -Xms1024m -XX:+HeapDumpOnOutOfMemoryError -javaagent:/opt/sonarqube/extensions/plugins/sonarqube-community-branch-plugin.jar=ce"
+#  LDAP_AUTHENTICATION: simple
+#  LDAP_FOLLOWREFERRALS: "false"
+#  LDAP_USER_REQUEST: "(&(objectClass=user)(sAMAccountName={login}))"
+#  LDAP_GROUP_IDATTRIBUTE: "cn"
+#  LDAP_USER_EMAILATTRIBUTE: "mail"
+#  LDAP_GROUP_REQUEST: "(&(objectClass=group)(member={dn}))"
+#  LDAP_GROUP_IDATTRIBUTE: "cn"
+#  LDAP_URL: ldap://172.16.96.9:389
+#  LDAP_BINDDN: "svc.adds.bind@intra.local"
+#  LDAP_USER_BASEDN: "OU=Lbty,OU=Hospitais,OU=Liberty,DC=intra,DC=local"
+#  LDAP_GROUP_BASEDN: "OU=Lbty,OU=Hospitais,OU=Liberty,DC=intra,DC=local"
+#  SONAR_SECURITY_REALM: LDAP
+#  LDAP_REALM: intra.local
+#  LDAP_CONTEXTFACTORYCLASS: com.sun.jndi.ldap.LdapCtxFactory
+#  LDAP_STARTTLS: "false"

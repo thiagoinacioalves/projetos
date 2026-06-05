@@ -1,0 +1,13 @@
+{{- if and .Values.sonarqube.enabled .Values.sonarqube.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.sonarqube.name }}-pvc
+spec:
+  accessModes:
+  - {{ .Values.sonarqube.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.sonarqube.persistence.size }}
+  storageClassName: {{ .Values.sonarqube.persistence.storageClass }}
+{{- end }}

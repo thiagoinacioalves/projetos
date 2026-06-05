@@ -1,0 +1,13 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.sonarqube.name }}-db-{{ .Values.postgresql.name }}-pvc
+spec:
+  accessModes:
+  - {{ .Values.postgresql.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.postgresql.persistence.size }}
+  storageClassName: {{ .Values.postgresql.persistence.storageClass }}
+{{- end }}
